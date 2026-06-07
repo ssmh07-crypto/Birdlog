@@ -1,73 +1,72 @@
-# React + TypeScript + Vite
+# BirdLog
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+BirdLog는 사용자가 새 사진을 촬영하거나 기존 사진을 업로드한 뒤, 샘플 새 후보를 확인하고 나만의 탐조 도감에 저장하는 React + Vite 기반 모바일 웹 MVP입니다.
 
-Currently, two official plugins are available:
+## 현재 MVP 범위
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- 로그인 없음
+- 서버 없음
+- 실제 AI 이미지 동정 API 없음
+- 외부 새 DB 연동 없음
+- localStorage 기반 발견 기록 저장
+- 도감은 `birdId` 기준으로 중복 없이 종 단위 표시
+- 같은 새를 여러 번 저장하면 기록은 누적되지만 도감 카드는 1개만 표시
+- 사진 원본은 저장하지 않고, 브라우저에서 압축한 base64 이미지만 저장
 
-## React Compiler
+## 실행 방법
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+프로덕션 빌드는 아래 명령으로 확인할 수 있습니다.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm run build
 ```
+
+## 모바일 테스트 방법
+
+1. 개발 서버를 실행합니다.
+2. 같은 네트워크의 휴대폰에서 Vite가 출력하는 Network URL로 접속합니다.
+3. 찾기 탭에서 `촬영하기`를 누르면 모바일 후면 카메라가 우선 실행됩니다.
+4. `사진 선택하기`를 누르면 갤러리 또는 앨범의 기존 사진을 선택할 수 있습니다.
+
+## 사진 처리
+
+- 업로드된 사진은 저장 전에 Canvas API로 리사이즈됩니다.
+- 긴 변 기준 최대 1280px 이하로 조정합니다.
+- JPEG quality `0.7`로 압축합니다.
+- 압축된 base64 이미지만 localStorage에 저장합니다.
+- 원본 사진 파일은 저장하지 않습니다.
+- EXIF GPS 정보는 압축 전에 먼저 읽습니다.
+
+## 위치 처리
+
+위치는 아래 우선순위로 저장됩니다.
+
+1. 사진 EXIF GPS
+2. 브라우저 현재 위치 권한
+3. 직접 입력한 위치 메모
+4. 위치 없음
+
+각 발견 기록에는 `locationSource`가 `exif`, `currentLocation`, `manual`, `none` 중 하나로 저장됩니다.
+
+## 도감 저장 방식
+
+localStorage에는 `records` 배열이 저장됩니다. 브라우저 데이터를 삭제하면 BirdLog 도감 데이터도 사라집니다.
+
+도감 목록은 전체 발견 기록 수가 아니라 `birdId` 기준으로 그룹화된 새 종 단위로 표시됩니다. 수집률도 전체 샘플 새 데이터 수 대비 발견한 `birdId` 수로 계산합니다.
+
+## 샘플 후보 기반
+
+현재 MVP는 실제 AI 모델이나 API를 사용하지 않습니다. 사진 선택 후 약 1초 동안 분석 중 상태를 보여주고, `src/data/birds.js`의 샘플 새 데이터에서 후보 3개를 표시합니다.
+
+## 추후 확장 방향
+
+1. AI 이미지 동정 API 연결
+2. 글로벌 새 DB 연결
+3. Firebase 로그인/클라우드 저장
+4. 사용자 사진 백업
+5. 위치 기반 후보군 고도화
