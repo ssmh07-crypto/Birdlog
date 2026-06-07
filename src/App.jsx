@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import './App.css'
-import { birds, getBirdById, sampleCandidates } from './data/birds'
+import { birds, getBirdById } from './data/birds'
+import { analyzeBirdImage, getSampleAnalysis } from './utils/analyze'
 import { readExifLocation } from './utils/exifLocation'
 import { compressImage, formatBytes } from './utils/imageCompress'
 import { requestCurrentLocation } from './utils/location'
@@ -19,6 +20,17 @@ function delay(ms) {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms)
   })
+}
+
+function buildLocationInfo(location) {
+  return (
+    location || {
+      latitude: null,
+      longitude: null,
+      locationText: '',
+      locationSource: 'none',
+    }
+  )
 }
 
 function App() {
@@ -70,17 +82,23 @@ function App() {
         nextLocation = await requestCurrentLocation()
       }
 
-      setLocationInfo(
-        nextLocation || {
-          latitude: null,
-          longitude: null,
-          locationText: '',
-          locationSource: 'none',
-        },
-      )
+      const finalLocationInfo = buildLocationInfo(nextLocation)
+      setLocationInfo(finalLocationInfo)
       setSelectedImage(compressed)
       await delay(1000)
-      setCandidates(sampleCandidates.map((candidate) => ({ ...getBirdById(candidate.birdId), ...candidate })))
+
+      try {
+        const analysis = await analyzeBirdImage({
+          imageData: compressed.imageData,
+          locationInfo: finalLocationInfo,
+        })
+        setCandidates(analysis.candidates)
+        if (analysis.notes) setNotice(analysis.notes)
+      } catch (analysisError) {
+        const sampleAnalysis = getSampleAnalysis()
+        setCandidates(sampleAnalysis.candidates)
+        setNotice(`${analysisError.message} 샘플 후보를 대신 표시합니다.`)
+      }
     } catch (error) {
       setNotice(error.message || '사진을 처리하지 못했어요. 다시 시도해 주세요.')
     } finally {
@@ -104,7 +122,7 @@ function App() {
 
     const record = {
       id: crypto.randomUUID(),
-      birdId: candidate.id,
+      birdId: candidate.birdId || candidate.id,
       birdName: candidate.name,
       scientificName: candidate.scientificName,
       imageData: selectedImage.imageData,
@@ -120,7 +138,7 @@ function App() {
     setRecords(nextRecords)
     setNotice(`${candidate.name} 기록을 도감에 저장했어요.`)
     setActiveTab('library')
-    setSelectedBirdId(candidate.id)
+    setSelectedBirdId(candidate.birdId || candidate.id)
   }
 
   function handleDeleteRecord(recordId) {
@@ -341,7 +359,7 @@ function FindScreen({
 
       {candidates.length > 0 && (
         <section className="candidateList">
-          <h2>샘플 후보</h2>
+          <h2>새 후보</h2>
           {candidates.map((candidate) => (
             <article className="candidateCard" key={candidate.id}>
               <div className="candidateHeader">
@@ -384,8 +402,18 @@ function FindScreen({
                 </div>
                 <div>
                   <dt>구분 포인트</dt>
-                  <dd>{candidate.similarSpecies.map((item) => `${item.name}: ${item.difference}`).join(' ')}</dd>
+                  <dd>
+                    {candidate.similarSpecies.length > 0
+                      ? candidate.similarSpecies.map((item) => `${item.name}: ${item.difference}`).join(' ')
+                      : '비슷한 새 정보가 아직 충분하지 않아요.'}
+                  </dd>
                 </div>
+                {candidate.eBirdSpeciesCode && (
+                  <div>
+                    <dt>eBird 코드</dt>
+                    <dd>{candidate.eBirdSpeciesCode}</dd>
+                  </div>
+                )}
               </dl>
               <button className="primaryButton" type="button" onClick={() => onSave(candidate)}>
                 이 새로 저장
